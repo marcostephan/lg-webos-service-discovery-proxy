@@ -1,0 +1,12 @@
+services:
+  lgtv-sdp:
+    build: .
+    image: lgtv-sdp:local
+    container_name: lgtv-sdp
+    restart: unless-stopped
+    read_only: true
+    cap_drop: ["ALL"]
+    cap_add: ["NET_BIND_SERVICE"]
+    ports:
+      - "${BIND_IP}:443:443"
+      - "${BIND_IP}:80:80"

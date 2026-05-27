@@ -1,0 +1,8 @@
+.git
+.gitignore
+.dockerignore
+bin
+README.md
+Taskfile.yml
+docker-compose.yml
+*_test.go

@@ -1,0 +1,76 @@
+version: "3"
+
+dotenv: ['.env']
+
+vars:
+  IMAGE: lgtv-sdp:local
+
+tasks:
+  default:
+    cmds: [task --list]
+    silent: true
+
+  run:
+    desc: Run locally on high ports (no root needed)
+    env:
+      LGTV_HTTP_ADDR: ":8080"
+      LGTV_HTTPS_ADDR: ":8443"
+    cmds: [go run .]
+
+  build:
+    desc: Build a static binary at ./bin/lgtv-sdp
+    cmds:
+      - CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o ./bin/lgtv-sdp .
+
+  fmt:
+    desc: gofmt -s -w
+    cmds: [gofmt -s -w .]
+
+  vet:
+    desc: go vet
+    cmds: [go vet ./...]
+
+  test:
+    desc: Run unit tests with race detector
+    cmds: [go test -race ./...]
+
+  check:
+    desc: fmt + vet + test
+    cmds:
+      - task: fmt
+      - task: vet
+      - task: test
+
+  docker:build:
+    desc: Build the container image
+    cmds: [docker build -t {{.IMAGE}} .]
+
+  docker:up:
+    desc: Build + start the stack locally
+    cmds: [docker compose up -d --build]
+
+  docker:down:
+    desc: Stop the stack
+    cmds: [docker compose down]
+
+  docker:logs:
+    desc: Tail container logs
+    cmds: [docker compose logs -f --tail=50]
+
+  deploy:
+    desc: Sync sources to $SSH_HOST and rebuild remotely
+    cmds:
+      - tar --exclude='.git' --exclude='bin' --exclude='.env' -czf - . | ssh $SSH_HOST 'mkdir -p $REMOTE_DIR && tar -xzf - -C $REMOTE_DIR'
+      - ssh $SSH_HOST 'cd $REMOTE_DIR && BIND_IP=$BIND_IP docker compose up -d --build'
+
+  remote:logs:
+    desc: Tail logs on $SSH_HOST
+    cmds: [ssh $SSH_HOST 'docker logs -f --tail=50 lgtv-sdp']
+
+  smoke:
+    desc: Hit the deployed service end-to-end ($TEST_URL)
+    cmds:
+      - curl -ks -o /dev/null -w "v14:    %{http_code} x-server-time=%header{x-server-time}\n" -X POST $TEST_URL/rest/sdp/v14.0/initservices
+      - curl -ks -o /dev/null -w "notice: %{http_code}\n" $TEST_URL/rest/sdp/v14.0/notice
+      - curl -ks -o /dev/null -w "eula:   %{http_code}\n" '$TEST_URL/rest/sdp/v14.0/eula?voice=Y'
+      - curl -ks -o /dev/null -w "status: %{http_code}\n" $TEST_URL/rest/apps/webos8.0/serverstatus/status
