@@ -183,13 +183,10 @@ for the `v14.0` paths, the TV stopped retrying `initservices` and the country
 prompt from the canned reply triggered (so the TV definitely read and acted
 on the response body).
 
-## Footprint
-
-- Binary: ~5 MB (static, scratch base image)
-- Image: ~5 MB total
-- RAM at rest: a few MB
-- No runtime dependencies, no DB, no state.
-
 ## Credits
 
 Original reverse-engineering and reply payload: [wisq/lgtv-sdp][upstream].
+
+## License
+
+[The Unlicense](LICENSE) — public domain, do whatever.

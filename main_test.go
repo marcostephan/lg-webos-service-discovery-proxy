@@ -1,7 +1,7 @@
 package main
 
 import (
-	"net/http"
+	"encoding/json"
 	"net/http/httptest"
 	"testing"
 )
@@ -41,7 +41,7 @@ func TestInitServicesReplyIsValid(t *testing.T) {
 	if len(initServicesReply) == 0 {
 		t.Fatal("initservices reply is empty")
 	}
-	if got := http.DetectContentType(initServicesReply); got == "" {
-		t.Fatalf("could not detect content type, got %q", got)
+	if !json.Valid(initServicesReply) {
+		t.Fatal("initservices reply is not valid JSON")
 	}
 }

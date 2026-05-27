@@ -160,7 +160,11 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = httpSrv.Shutdown(ctx)
-	_ = httpsSrv.Shutdown(ctx)
+
+	var shutdownWg sync.WaitGroup
+	shutdownWg.Add(2)
+	go func() { defer shutdownWg.Done(); _ = httpSrv.Shutdown(ctx) }()
+	go func() { defer shutdownWg.Done(); _ = httpsSrv.Shutdown(ctx) }()
+	shutdownWg.Wait()
 	wg.Wait()
 }

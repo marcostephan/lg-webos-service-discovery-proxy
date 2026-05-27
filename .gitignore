@@ -1,4 +1,6 @@
 .env
+.scratch/
+.idea/
 bin/
 *.test
 *.out

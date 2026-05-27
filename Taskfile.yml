@@ -60,17 +60,17 @@ tasks:
   deploy:
     desc: Sync sources to $SSH_HOST and rebuild remotely
     cmds:
-      - tar --exclude='.git' --exclude='bin' --exclude='.env' -czf - . | ssh $SSH_HOST 'mkdir -p $REMOTE_DIR && tar -xzf - -C $REMOTE_DIR'
-      - ssh $SSH_HOST 'cd $REMOTE_DIR && BIND_IP=$BIND_IP docker compose up -d --build'
+      - tar --exclude='.git' --exclude='bin' --exclude='.env' -czf - . | ssh "$SSH_HOST" "mkdir -p $REMOTE_DIR && tar -xzf - -C $REMOTE_DIR"
+      - ssh "$SSH_HOST" "cd $REMOTE_DIR && BIND_IP=$BIND_IP docker compose up -d --build"
 
   remote:logs:
     desc: Tail logs on $SSH_HOST
-    cmds: [ssh $SSH_HOST 'docker logs -f --tail=50 lgtv-sdp']
+    cmds: [ssh "$SSH_HOST" 'docker logs -f --tail=50 lgtv-sdp']
 
   smoke:
     desc: Hit the deployed service end-to-end ($TEST_URL)
     cmds:
-      - curl -ks -o /dev/null -w "v14:    %{http_code} x-server-time=%header{x-server-time}\n" -X POST $TEST_URL/rest/sdp/v14.0/initservices
-      - curl -ks -o /dev/null -w "notice: %{http_code}\n" $TEST_URL/rest/sdp/v14.0/notice
-      - curl -ks -o /dev/null -w "eula:   %{http_code}\n" '$TEST_URL/rest/sdp/v14.0/eula?voice=Y'
-      - curl -ks -o /dev/null -w "status: %{http_code}\n" $TEST_URL/rest/apps/webos8.0/serverstatus/status
+      - curl -ks -o /dev/null -w "v14:    %{http_code} x-server-time=%header{x-server-time}\n" -X POST "$TEST_URL/rest/sdp/v14.0/initservices"
+      - curl -ks -o /dev/null -w "notice: %{http_code}\n" "$TEST_URL/rest/sdp/v14.0/notice"
+      - curl -ks -o /dev/null -w "eula:   %{http_code}\n" "$TEST_URL/rest/sdp/v14.0/eula?voice=Y"
+      - curl -ks -o /dev/null -w "status: %{http_code}\n" "$TEST_URL/rest/apps/webos8.0/serverstatus/status"
