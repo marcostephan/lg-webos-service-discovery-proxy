@@ -12,17 +12,18 @@ modern (webOS 8 / SDP v14) firmware happy.
 ## Why this exists
 
 On boot, an LG TV posts to `https://<region>.lgtvsdp.com/rest/sdp/v<N>/initservices`.
-If the response never comes, the TV decides it's offline and refuses to sync time.
-If you blackhole the LG domains *without* providing a substitute, you lose
-auto time-sync and the "Network Connection" indicator goes red.
+The [upstream Ruby project][upstream] documents what happens if the response
+never comes: the TV's "Network Connection" check fails and automatic time
+sync is disabled. Just blackholing the LG domains has the same effect — you
+need a substitute that answers.
 
 This service:
 
-- Replies to `initservices` with a static JSON payload (so the connectivity
-  check passes).
-- Sets the `X-Server-Time` header, which the TV uses to seed its clock at boot.
-- Returns empty-but-200 replies for the other SDP endpoints the TV calls
-  during startup (`notice`, `eula`, `serverstatus`) so nothing else 404s.
+- Replies to `initservices` with a static JSON payload, so requests succeed.
+- Sets an `X-Server-Time` header on that reply (the field the upstream
+  project identified as the TV's pre-NTP clock source).
+- Returns empty-but-200 replies for the other SDP endpoints we saw the
+  TV call during startup (`notice`, `eula`, `serverstatus`) so they don't 404.
 
 That's the entire job.
 
@@ -86,18 +87,48 @@ task smoke
 
 ## DNS
 
-You need to make the TV's resolver return your host for the LG SDP domains.
-On a UniFi network, add four `Custom DNS Records` (Settings → Routing → DNS):
+This service is useless unless the TV's DNS lookups for LG's domains return
+**your** host instead of LG's real servers. Two things have to be true:
 
-| Hostname            | Type | Value         |
-|---------------------|------|---------------|
-| `*.lgtvsdp.com`     | A    | `<your-IP>`   |
-| `*.lge.com`         | A    | `<your-IP>`   |
-| `*.lgsmartad.com`   | A    | `<your-IP>`   |
-| `*.lgappstv.com`    | A    | `<your-IP>`   |
+1. The TV must resolve through a DNS server **you control**. If the TV is
+   configured (manually or via DHCP) to use `8.8.8.8` / `1.1.1.1` / the ISP's
+   resolver, you can't override its lookups and the service can't help. Push
+   your local resolver to the TV via DHCP, or hard-code it in the TV's network
+   settings.
+2. That local resolver must have **override records** for the four LG SDP
+   wildcard domains pointing at the host running this service. Anything that
+   does authoritative overrides works: UniFi's Custom DNS Records, Pi-hole's
+   Local DNS, AdGuard Home's DNS rewrites, dnsmasq's `address=/lge.com/...`,
+   PowerDNS, BIND zones — whatever you have.
 
-Reboot (power-cycle, not just standby) the TV after the records are in. The
-`initservices` call only happens on cold boot.
+Add four `A` records:
+
+| Hostname            | Value             |
+|---------------------|-------------------|
+| `*.lgtvsdp.com`     | `<lgtv-sdp host>` |
+| `*.lge.com`         | `<lgtv-sdp host>` |
+| `*.lgsmartad.com`   | `<lgtv-sdp host>` |
+| `*.lgappstv.com`    | `<lgtv-sdp host>` |
+
+If your resolver doesn't support wildcards, add at minimum:
+`ca.lgtvsdp.com` (or `eu.lgtvsdp.com` for EU TVs) and `ngfts.lge.com`. The
+TV's `Host` header in our verified requests revealed the rest.
+
+**Verify resolution from a client on the same LAN** before touching the TV:
+
+```sh
+nslookup ca.lgtvsdp.com   # must return your <lgtv-sdp host>, not an LG IP
+nslookup ngfts.lge.com    # same
+```
+
+Then restart the TV. We verified a remote-initiated reboot was enough to
+trigger the `initservices` call — a full unplug isn't required.
+
+### UniFi specifically
+
+Settings → Routing → DNS → Custom DNS Records. Add the four wildcards above.
+UniFi 4.x supports wildcards; older controllers may not — fall back to the
+specific hostnames.
 
 ## Customising the reply
 
@@ -146,13 +177,11 @@ on cold boot against this server. Sources are real TV IPs on the IoT LAN.
 | GET    | `/rest/apps/webos8.0/serverstatus/status`       | 200    | Empty `{"status":"ok"}` reply accepted.                |
 | GET    | `/fts/gftsDownload.lge?...&func_code=META_THUMBNAIL` | 404 | Home-screen channel thumbnails — **404 is desired**. These would otherwise reach LG's CDN and pull tracked content. |
 
-The TV hit our server with `Host: ngfts.lge.com` for the thumbnail requests
-and `*.lgtvsdp.com` for the SDP calls — confirming the wildcard DNS overrides
-catch everything that matters.
-
-After the SDP responses landed, the TV's home menu reported "connected" and
-the clock synced via `X-Server-Time`. No further LG-domain traffic left
-the LAN.
+The TV hit our server with `Host: ngfts.lge.com` for the thumbnail requests —
+confirming the `*.lge.com` wildcard catches those. After we shipped support
+for the `v14.0` paths, the TV stopped retrying `initservices` and the country
+prompt from the canned reply triggered (so the TV definitely read and acted
+on the response body).
 
 ## Footprint
 
