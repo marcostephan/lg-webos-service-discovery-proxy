@@ -54,6 +54,31 @@ cp .env.example .env
 `docker-compose.yml` reads `BIND_IP` automatically; `Taskfile.yml` loads the
 rest via its `dotenv:` directive.
 
+## Install (published image)
+
+Multi-arch images (`linux/amd64`, `linux/arm64`) at
+`ghcr.io/marcostephan/lg-webos-service-discovery-proxy`:
+
+```sh
+docker pull ghcr.io/marcostephan/lg-webos-service-discovery-proxy:latest
+```
+
+Or pin a version: `:v0.1.0`. A compose snippet to drop into your stack:
+
+```yaml
+services:
+  lgtv-sdp:
+    image: ghcr.io/marcostephan/lg-webos-service-discovery-proxy:latest
+    container_name: lgtv-sdp
+    restart: unless-stopped
+    read_only: true
+    cap_drop: ["ALL"]
+    cap_add: ["NET_BIND_SERVICE"]
+    ports:
+      - "${BIND_IP}:443:443"
+      - "${BIND_IP}:80:80"
+```
+
 ## Quick start (local dev)
 
 ```sh
